@@ -1,0 +1,6 @@
+black
+gymnasium
+matplotlib
+tensorflow
+tensorflow-metal
+gymnasium[mujoco]
