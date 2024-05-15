@@ -19,7 +19,6 @@ class Actor(tf.keras.Model):
 
     self.dense1 = layers.Dense(64, activation="relu")
     self.dense2 = layers.Dense(128, activation="relu")
-    self.actor = layers.Dense(num_actions)
 
     uniform_init = tf.keras.initializers.RandomUniform(-0.003, 0.003)
     self.log_std_layer = layers.Dense(num_actions, kernel_initializer=uniform_init, bias_initializer=uniform_init)
@@ -49,7 +48,7 @@ class CriticQ(tf.keras.Model):
 
   def __init__(
       self,
-      num_input: int,
+      num_input: int,):
     """Initialize."""
     super().__init__()
 
@@ -66,13 +65,13 @@ class CriticQ(tf.keras.Model):
 
     return self.critic(x)
 
-class CriticQ(tf.keras.Model):
+class CriticV(tf.keras.Model):
   """Combined actor-critic network."""
 
   def __init__(
       self,
-      num_input: int,
-    """Initialize."""
+       num_input: int,
+    ):
     super().__init__()
 
     self.dense1 = layers.Dense(64, activation="relu")
