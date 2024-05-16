@@ -20,7 +20,7 @@ class Actor(tf.keras.Model):
     self.dense1 = layers.Dense(64, activation="relu")
     self.dense2 = layers.Dense(128, activation="relu")
 
-    uniform_init = tf.keras.initializers.RandomUniform(-0.003, 0.003)
+    uniform_init = tf.keras.initializers.RandomUniform(-0.0007, 0.0007)
     self.log_std_layer = layers.Dense(num_actions, kernel_initializer=uniform_init, bias_initializer=uniform_init)
     self.mean_layer = layers.Dense(num_actions, kernel_initializer=uniform_init, bias_initializer=uniform_init)
 
@@ -35,12 +35,12 @@ class Actor(tf.keras.Model):
         ) * (log_std + 1)
     std = tf.math.exp(log_std)
 
-    dist = tfp.distributions.Normal(mu, std)
+    dist = tfp.distributions.Normal(mu, std, allow_nan_stats=False)
     z = dist.sample()
     action = tf.math.tanh(z)
 
-    log_prob = dist.log_prob(z) - tf.math.log(1 - tf.math.pow(action,2) + 1e-7)
-    log_prob = tf.math.reduce_sum(log_prob,-1, keepdims=True)
+    log_prob = dist.log_prob(z) - tf.math.reduce_sum(tf.math.log(1 - tf.math.pow(action,2) + 1e-7), -1, True)
+#     log_prob = tf.math.reduce_sum(log_prob,-1, keepdims=True)
     return action, log_prob
 
 class CriticQ(tf.keras.Model):
@@ -55,7 +55,7 @@ class CriticQ(tf.keras.Model):
     self.dense1 = layers.Dense(64, activation="relu")
     self.dense2 = layers.Dense(128, activation="relu")
 
-    uniform_init = tf.keras.initializers.RandomUniform(-0.003, 0.003)
+    uniform_init = tf.keras.initializers.RandomUniform(-0.0007, 0.0007)
     self.critic = layers.Dense(1, kernel_initializer=uniform_init, bias_initializer=uniform_init)
 
   def call(self, state: tf.Tensor, action: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
@@ -77,7 +77,7 @@ class CriticV(tf.keras.Model):
     self.dense1 = layers.Dense(64, activation="relu")
     self.dense2 = layers.Dense(128, activation="relu")
 
-    uniform_init = tf.keras.initializers.RandomUniform(-0.003, 0.003)
+    uniform_init = tf.keras.initializers.RandomUniform(-0.0007, 0.0007)
     self.critic = layers.Dense(1, kernel_initializer=uniform_init, bias_initializer=uniform_init)
 
   def call(self, state: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:

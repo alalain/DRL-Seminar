@@ -4,11 +4,11 @@ from typing import Dict, List, Tuple
 class ReplayBuffer:
     """A simple numpy replay buffer."""
 
-    def __init__(self, obs_dim: int, size: int, batch_size: int = 32):
+    def __init__(self, obs_dim: int, act_dim: int, size: int, batch_size: int = 32):
         """Initialize."""
         self.obs_buf = np.zeros([size, obs_dim], dtype=np.float32)
         self.next_obs_buf = np.zeros([size, obs_dim], dtype=np.float32)
-        self.acts_buf = np.zeros([size], dtype=np.float32)
+        self.acts_buf = np.zeros([size, act_dim], dtype=np.float32)
         self.rews_buf = np.zeros([size], dtype=np.float32)
         self.done_buf = np.zeros([size], dtype=np.float32)
         self.max_size, self.batch_size = size, batch_size
