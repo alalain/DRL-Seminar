@@ -1,4 +1,4 @@
-FROM nvcr.io/nvidia/tensorflow:24.03-tf2-py3
+FROM nvcr.io/nvidia/pytorch:24.01-py3
 
 LABEL maintainer="alain.keller@ost.ch"
 
@@ -14,7 +14,7 @@ RUN pip3 install --user \
 	timm==0.5.4 \
   'gymnasium[mujoco]' \
   gymnasium==1.0.0a1 \
-  tf_keras==2.15.1 \
-  tensorflow-probability==0.23.0 \
   opencv-python
 #	opencv-python
+# RUN pip3 install --user \
+	# pycuda
