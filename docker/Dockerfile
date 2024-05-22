@@ -13,7 +13,7 @@ RUN pip3 install --user \
 	black \
 	timm==0.5.4 \
   'gymnasium[mujoco]' \
-  gymnasium==1.0.0a1 \
+  gymnasium==0.29.1 \
   tf_keras==2.15.1 \
   tensorflow-probability==0.23.0 \
   opencv-python

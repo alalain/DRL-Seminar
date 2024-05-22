@@ -1,6 +1,7 @@
 xhost +local:
 docker run --rm -it \
   --gpus all \
+  --cpus=6 \
   --ipc=host \
   --ulimit memlock=-1 \
   --ulimit stack=67108864 \

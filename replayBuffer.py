@@ -22,13 +22,16 @@ class ReplayBuffer:
         done: bool,
     ):
         """Store the transition in buffer."""
-        self.obs_buf[self.ptr] = obs
-        self.next_obs_buf[self.ptr] = next_obs
-        self.acts_buf[self.ptr] = act
-        self.rews_buf[self.ptr] = rew
-        self.done_buf[self.ptr] = done
-        self.ptr = (self.ptr + 1) % self.max_size
-        self.size = min(self.size + 1, self.max_size)
+        i = 1
+        if len(obs.shape) > 1:
+            i = obs.shape[0]
+        self.obs_buf[self.ptr:self.ptr + i] = obs
+        self.next_obs_buf[self.ptr:self.ptr + i] = next_obs
+        self.acts_buf[self.ptr:self.ptr + i] = act
+        self.rews_buf[self.ptr:self.ptr + i] = rew
+        self.done_buf[self.ptr:self.ptr + i] = done
+        self.ptr = (self.ptr + i) % self.max_size
+        self.size = min(self.size + i, self.max_size)
 
     def sample_batch(self) -> Dict[str, np.ndarray]:
         """Randomly sample a batch of experiences from memory."""
