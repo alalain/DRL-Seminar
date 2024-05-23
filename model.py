@@ -10,7 +10,7 @@ class Actor(tf.keras.Model):
     def __init__(self,
                  num_actions: int,
                  num_input: int,
-                 log_std_min: float = -4.5,
+                 log_std_min: float = -3.5,
                  log_std_max: float = 2.5,
                  units_per_layer: int = 256):
         """Initialize."""
@@ -20,7 +20,7 @@ class Actor(tf.keras.Model):
 
         self.dense1 = layers.Dense(units_per_layer, activation="relu")
         self.dense2 = layers.Dense(units_per_layer, activation="relu")
-        self.dense3 = layers.Dense(units_per_layer, activation="relu")
+        # self.dense3 = layers.Dense(units_per_layer, activation="relu")
 
         # uniform_init = tf.keras.initializers.RandomUniform(-0.1,
         #                                                    0.1,
@@ -36,7 +36,7 @@ class Actor(tf.keras.Model):
     def call(self, inputs: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
         x = self.dense1(inputs)
         x = self.dense2(x)
-        x = self.dense3(x)
+        # x = self.dense3(x)
 
         # mu = tf.math.tanh(self.mean_layer(x))
         # log_std = tf.math.tanh(self.log_std_layer(x))
@@ -69,7 +69,7 @@ class CriticQ(tf.keras.Model):
 
         self.dense1 = layers.Dense(units_per_layer, activation="relu")
         self.dense2 = layers.Dense(units_per_layer, activation="relu")
-        self.dense3 = layers.Dense(units_per_layer, activation="relu")
+        # self.dense3 = layers.Dense(units_per_layer, activation="relu")
 
         uniform_init = tf.keras.initializers.RandomUniform(-0.07,
                                                            0.07,
@@ -83,7 +83,7 @@ class CriticQ(tf.keras.Model):
         inputs = tf.concat((state, action), axis=-1)
         x = self.dense1(inputs)
         x = self.dense2(x)
-        x = self.dense3(x)
+        # x = self.dense3(x)
 
         return self.critic(x)
 
@@ -96,7 +96,7 @@ class CriticV(tf.keras.Model):
 
         self.dense1 = layers.Dense(units_per_layer, activation="relu")
         self.dense2 = layers.Dense(units_per_layer, activation="relu")
-        self.dense3 = layers.Dense(units_per_layer, activation="relu")
+        # self.dense3 = layers.Dense(units_per_layer, activation="relu")
 
         uniform_init = tf.keras.initializers.RandomUniform(-0.07,
                                                            0.07,
@@ -108,7 +108,7 @@ class CriticV(tf.keras.Model):
     def call(self, state: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
         x = self.dense1(state)
         x = self.dense2(x)
-        x = self.dense3(x)
+        # x = self.dense3(x)
 
         return self.critic(x)
 

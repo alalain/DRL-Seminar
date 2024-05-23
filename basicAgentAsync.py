@@ -32,7 +32,7 @@ class BasicAgent:
         self.is_test = False
         self.batch_size = batch_size
         self.gamma = tf.Variable(gamma)
-        self.policy_update_rate = tf.Variable(2)
+        self.policy_update_rate = tf.Variable(1)
         self.tau = tf.Variable(tau)
 
         self.gamma_survive = gamma_survive
@@ -93,8 +93,8 @@ class BasicAgent:
             custom_reward = info[
                 'reward_survive'] * self.current_gamma_survive * info[
                     '_reward_survive'] + info['reward_forward'] * (
-                        1 - self.current_gamma_survive
-                    ) * info['_reward_forward'] - info['reward_ctrl'] * info[
+                        2 - self.current_gamma_survive
+                    ) * info['_reward_forward'] + info['reward_ctrl'] * info[
                         '_reward_ctrl']
             self.current_gamma_survive *= self.gamma_survive
             reward = custom_reward
@@ -190,9 +190,12 @@ class BasicAgent:
 
         # for i in range(1, num_iters):
         while self.n_steps < num_iters:
+            # t1 = time.time()
             action = self.select_action(state)
+            # t2 = time.time()
             # print(action)
             state, reward, done = self.take_step(action)
+            # t22 = time.time()
             score += reward
             for r, d, s in zip(reward, done, score):
                 if d == True:
@@ -207,7 +210,7 @@ class BasicAgent:
             if (len(self.replay_buffer) >= self.batch_size
                     and self.n_steps > self.initial_random_steps):
                 for j in range(self.num_envs):
-
+                    # t3 = time.time()
                     self.n_steps.assign_add(1)
                     samples = self.replay_buffer.sample_batch()
                     states = samples["obs"]
@@ -220,13 +223,23 @@ class BasicAgent:
                     actions = tf.convert_to_tensor(actions)
                     rewards = tf.convert_to_tensor(rewards)
                     dones = tf.convert_to_tensor(dones)
+                    # t4 = time.time()
 
                     loss = self.update_model(states, next_state, actions,
                                              rewards, dones)
-                    t2 = time.time()
+                    # t5 = time.time()
+                    
                     losses.append(loss)
+                    # print('===========')
+                    # print(t2-t1)
+                    # print(t22-t2)
+                    # print(t4 - t3)
+                    # print(t5 - t4)
             else:
                 self.n_steps.assign_add(self.num_envs)
+                # print('===========')
+                # print(t2-t1)
+                # print(t22-t2)
             if self.n_steps % 1000 == 0:
                 print(f'Step {self.n_steps.numpy()}')
                 if len(losses) > 0:
@@ -372,21 +385,21 @@ if __name__ == "__main__":
     envs = gym.make_vec("Ant-v4",
                         num_envs=10,
                         healthy_reward=1,
-                        ctrl_cost_weight=0.3,
+                        ctrl_cost_weight=0.1,
                         vectorization_mode='async')
     val_env = gym.make(env_name, render_mode='rgb_array')
     agent = BasicAgent(env=envs,
                        val_env=val_env,
-                       buffer_size=600000,
+                       buffer_size=800000,
                        batch_size=256,
-                       initial_random_steps=350000)
+                       initial_random_steps=500000)
 
     source = agent.random_test()
     save_video(source, 'tmp/random')
     #     agent.human_test(4000)
     try:
         # scores = agent.train(150000)
-        scores, val_scores = agent.train(4000000)
+        scores, val_scores = agent.train(720000)
     except KeyboardInterrupt:
         scores = []
         val_scores = []
