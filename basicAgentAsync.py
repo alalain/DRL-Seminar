@@ -7,22 +7,23 @@ import gymnasium as gym
 import tensorflow as tf
 from typing import Tuple
 import cv2
+import wandb
 
 
 class BasicAgent:
 
-    def __init__(
-        self,
-        env: gym.Env,
-        val_env: gym.Env,
-        buffer_size: int,
-        batch_size: int,
-        initial_random_steps: int,
-        gamma: float = 0.99,
-        tau: float = 5e-3,
-        gamma_survive: float = 0.99995,
-        num_envs: int = 10,
-    ):
+    def __init__(self,
+                 env: gym.Env,
+                 val_env: gym.Env,
+                 buffer_size: int,
+                 batch_size: int,
+                 initial_random_steps: int,
+                 gamma: float = 0.99,
+                 tau: float = 5e-3,
+                 gamma_survive: float = 0.99995,
+                 num_envs: int = 10,
+                 log_std_min=-3.5,
+                 log_std_max=2.5):
 
         self.env = env
         self.val_env = val_env
@@ -32,7 +33,7 @@ class BasicAgent:
         self.is_test = False
         self.batch_size = batch_size
         self.gamma = tf.Variable(gamma)
-        self.policy_update_rate = tf.Variable(1)
+        self.policy_update_rate = tf.Variable(2)
         self.tau = tf.Variable(tau)
 
         self.gamma_survive = gamma_survive
@@ -52,16 +53,17 @@ class BasicAgent:
         self.replay_buffer = ReplayBuffer(num_observations, num_actions,
                                           buffer_size, batch_size)
 
-        self.actor = Actor(num_actions, num_observations)
+        self.actor = Actor(num_actions, num_observations, log_std_min,
+                           log_std_max)
         self.q_function_a = CriticQ(num_observations)
         self.q_function_b = CriticQ(num_observations)
         self.v_function = CriticV(num_observations)
         self.v_target = CriticV(num_observations)
         self.v_target.set_weights(self.v_function.get_weights())
-        self.actor_optimizer = tf.keras.optimizers.Adam(learning_rate=3e-5)
-        self.q_a_optimizer = tf.keras.optimizers.Adam(learning_rate=3e-5)
-        self.q_b_optimizer = tf.keras.optimizers.Adam(learning_rate=3e-5)
-        self.v_optimizer = tf.keras.optimizers.Adam(learning_rate=3e-5)
+        self.actor_optimizer = tf.keras.optimizers.Adam(learning_rate=3e-4)
+        self.q_a_optimizer = tf.keras.optimizers.Adam(learning_rate=3e-4)
+        self.q_b_optimizer = tf.keras.optimizers.Adam(learning_rate=3e-4)
+        self.v_optimizer = tf.keras.optimizers.Adam(learning_rate=3e-4)
 
         self.q_a_loss_f = tf.keras.losses.MeanSquaredError()
         self.q_b_loss_f = tf.keras.losses.MeanSquaredError()
@@ -69,8 +71,8 @@ class BasicAgent:
 
     @tf.function()
     def run_model(self, state):
-        selected_action = (self.actor(state, training=False)[0])
-        return selected_action
+        selected_action, log_prob, mu, std = self.actor(state, training=False)
+        return selected_action, mu
 
     def select_action(self, state: np.ndarray) -> np.ndarray:
         """Select an action from the input state."""
@@ -79,8 +81,11 @@ class BasicAgent:
             selected_action = self.env.action_space.sample()
         else:
             # selected_action = (self.actor(state, training=False)[0].numpy())
-            selected_action = self.run_model(
-                tf.convert_to_tensor(state)).numpy()
+            selected_action, mu = self.run_model(
+                tf.convert_to_tensor(state))
+            if self.is_test is True:
+                selected_action = tf.keras.activations.tanh(mu)
+            selected_action = selected_action.numpy()
 
         self.transition = [state, selected_action]
 
@@ -97,7 +102,7 @@ class BasicAgent:
                     ) * info['_reward_forward'] + info['reward_ctrl'] * info[
                         '_reward_ctrl']
             self.current_gamma_survive *= self.gamma_survive
-            reward = custom_reward
+            # reward = custom_reward
             self.transition += [5 * reward, next_state, done]
             self.replay_buffer.store(*self.transition)
 
@@ -109,13 +114,14 @@ class BasicAgent:
         next_state, reward, done, truncated, info = self.val_env.step(action)
         return next_state, reward, done
 
-    @tf.function(reduce_retracing=True)
+    # @tf.function(reduce_retracing=True)
+    @tf.function()
     def update_model(self, state, next_state, action, reward, done):
         with tf.GradientTape() as actor_tape, tf.GradientTape(
         ) as q_a_tape, tf.GradientTape() as q_b_tape, tf.GradientTape(
         ) as v_tape:
             with tf.GradientTape() as alphaTape:
-                new_action, log_prob = self.actor(state)
+                new_action, log_prob, *_ = self.actor(state)
                 # alphaTape.watch(self.log_alpha)
                 alpha_loss = tf.math.reduce_mean(
                     (-tf.exp(self.log_alpha) *
@@ -228,7 +234,7 @@ class BasicAgent:
                     loss = self.update_model(states, next_state, actions,
                                              rewards, dones)
                     # t5 = time.time()
-                    
+
                     losses.append(loss)
                     # print('===========')
                     # print(t2-t1)
@@ -240,22 +246,36 @@ class BasicAgent:
                 # print('===========')
                 # print(t2-t1)
                 # print(t22-t2)
-            if self.n_steps % 1000 == 0:
+            if self.n_steps % 500 == 0:
                 print(f'Step {self.n_steps.numpy()}')
                 if len(losses) > 0:
-                    print(f'Actor: {loss[0]}')
-                    print(f'Q A:   {loss[1]}')
-                    print(f'Q B:   {loss[2]}')
-                    print(f'Value: {loss[3]}')
-                    print(f'Alpha: {tf.exp(self.log_alpha)}')
-                    print(f'Reward:{np.mean(np.array(scores[-10:]))}')
+                    wandb.log({
+                        'Actor loss': loss[0],
+                        'Q_a loss': loss[1],
+                        'Q_b loss': loss[2],
+                        'Vf loss': loss[3],
+                        'Alpha': tf.exp(self.log_alpha),
+                        'Train Rewards': np.mean(np.array(scores[-5:]))
+                    }, step=self.n_steps.numpy())
+                    # print(f'Actor: {loss[0]}')
+                    # print(f'Q A:   {loss[1]}')
+                    # print(f'Q B:   {loss[2]}')
+                    # print(f'Value: {loss[3]}')
+                    # print(f'Alpha: {tf.exp(self.log_alpha)}')
+                    # print(f'Reward:{np.mean(np.array(scores[-10:]))}')
+                else: 
+                    wandb.log({
+                        'Train Rewards': np.mean(np.array(scores[-5:]))
+                    }, step=self.n_steps.numpy())
+
             if self.n_steps % 50000 == 0:
                 validation = self.validate()
                 val_scores.append(validation)
                 if (len(self.replay_buffer) >= self.batch_size
                         and self.n_steps > self.initial_random_steps):
                     manager.save()
-                print(f'<====== Validation:   {validation}')
+                # print(f'<====== Validation:   {validation}')
+                wandb.log({"validation Reward": validation})
 
         self.env.close()
         return scores, val_scores
@@ -281,7 +301,7 @@ class BasicAgent:
                                                        axis=0)).squeeze()
             next_state, reward, done = self.take_step(action)
             total_reward += reward
-            if done :
+            if done:
                 break
         self.val_env.close()
         self.is_test = False
@@ -363,12 +383,29 @@ def save_video(source, output_name):
 
 
 if __name__ == "__main__":
+    # xvfb-run -a python basicAgentAsync.py
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="Ant-SAC-1",
+
+        # track hyperparameters and run metadata with wandb.config
+        config={
+            "seed": 42,
+            "ctrl_cost_weight": 0.5,
+            "random_steps": 700000,
+            "buffer_size": 1000000,
+            "batch_size": 256,
+            "training_steps": 3000000,
+            "log_std_min": -3.5,
+            "log_std_max": 2.5
+        })
+    config = wandb.config
     # xvfb-run -a python basicAgent.py
     #     env = gym.make("Ant-v4", render_mode="rgb_array")
     #     env = gym.make("Ant-v5", render_mode="human")
     #     agent = BasicAgent(env, 100, 32, 2)
     #     source = agent.human_test()
-    tf.random.set_seed(42)
+    tf.random.set_seed(config.seed)
     env_name = 'Ant-v4'
 
     # env_name = 'InvertedPendulum-v4'
@@ -377,7 +414,7 @@ if __name__ == "__main__":
     def make_env():
         env = gym.make(env_name,
                        max_episode_steps=1000,
-                       ctrl_cost_weight=0.5,
+                       ctrl_cost_weight=config.ctrl_cost_weight,
                        healthy_reward=0.05)
         return env
 
@@ -385,21 +422,23 @@ if __name__ == "__main__":
     envs = gym.make_vec("Ant-v4",
                         num_envs=10,
                         healthy_reward=1,
-                        ctrl_cost_weight=0.1,
+                        ctrl_cost_weight=config.ctrl_cost_weight,
                         vectorization_mode='async')
     val_env = gym.make(env_name, render_mode='rgb_array')
     agent = BasicAgent(env=envs,
                        val_env=val_env,
-                       buffer_size=800000,
-                       batch_size=256,
-                       initial_random_steps=500000)
+                       buffer_size=config.buffer_size,
+                       batch_size=config.batch_size,
+                       initial_random_steps=config.random_steps,
+                       log_std_min=config.log_std_min,
+                       log_std_max=config.log_std_max)
 
     source = agent.random_test()
     save_video(source, 'tmp/random')
     #     agent.human_test(4000)
     try:
         # scores = agent.train(150000)
-        scores, val_scores = agent.train(720000)
+        scores, val_scores = agent.train(config.training_steps)
     except KeyboardInterrupt:
         scores = []
         val_scores = []

@@ -17,4 +17,5 @@ RUN pip3 install --user \
   tf_keras==2.15.1 \
   tensorflow-probability==0.23.0 \
   opencv-python
+RUN pip3 install --user wandb
 #	opencv-python
