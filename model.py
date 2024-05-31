@@ -24,15 +24,17 @@ class ReinforcePolicy(tf.keras.Model):
         self.dense2 = layers.Dense(units_per_layer, activation="relu")
         # self.dense3 = layers.Dense(units_per_layer, activation="relu")
 
-        # uniform_init = tf.keras.initializers.RandomUniform(-0.1,
-        #                                                    0.1,
-        #                                                    seed=42)
+        uniform_init = tf.keras.initializers.RandomUniform(-0.1,
+                                                           0.1,
+                                                           seed=42)
         uniform_init = tf.keras.initializers.GlorotNormal(seed=42)
         self.log_std_layer = layers.Dense(num_actions,
-                                          kernel_initializer='glorot_uniform',
+                                          kernel_initializer=uniform_init,
+                                          # kernel_initializer='glorot_uniform',
                                           bias_initializer='zeros')
         self.mean_layer = layers.Dense(num_actions,
-                                       kernel_initializer='glorot_uniform',
+                                       kernel_initializer=uniform_init,
+                                       # kernel_initializer='glorot_uniform',
                                        bias_initializer='zeros')
 
     def call(self, inputs: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
@@ -81,15 +83,17 @@ class Actor(tf.keras.Model):
         self.dense2 = layers.Dense(units_per_layer, activation="relu")
         # self.dense3 = layers.Dense(units_per_layer, activation="relu")
 
-        # uniform_init = tf.keras.initializers.RandomUniform(-0.1,
-        #                                                    0.1,
-        #                                                    seed=42)
+        uniform_init = tf.keras.initializers.RandomUniform(-0.1,
+                                                           0.1,
+                                                           seed=42)
         uniform_init = tf.keras.initializers.GlorotNormal(seed=42)
         self.log_std_layer = layers.Dense(num_actions,
-                                          kernel_initializer='glorot_uniform',
+                                          kernel_initializer=uniform_init,
+                                          # kernel_initializer='glorot_uniform',
                                           bias_initializer='zeros')
         self.mean_layer = layers.Dense(num_actions,
-                                       kernel_initializer='glorot_uniform',
+                                       kernel_initializer=uniform_init,
+                                       # kernel_initializer='glorot_uniform',
                                        bias_initializer='zeros')
 
     def call(self, inputs: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:

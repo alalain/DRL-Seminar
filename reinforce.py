@@ -11,7 +11,8 @@ from typing import Tuple
 import cv2
 import wandb
 
-checkpoint_name = 'checkpoint_ant'
+checkpoint_name = 'checkpoint_ant_4'
+
 
 class ReinforceAgent:
 
@@ -26,6 +27,7 @@ class ReinforceAgent:
                  exploration_rate_update: float = 0.999,
                  min_exploration: float = 0.1,
                  log_std_min=-3.5,
+                 custom_reward=False,
                  log_std_max=2.5):
 
         self.env = env
@@ -40,6 +42,7 @@ class ReinforceAgent:
 
         self.gamma_survive = gamma_survive
         self.current_gamma_survive = gamma_survive
+        self.custom_reward = custom_reward
 
         self.num_observations = env.observation_space.shape[0]
         self.num_actions = env.action_space.shape[0]
@@ -48,7 +51,7 @@ class ReinforceAgent:
                                      self.num_observations,
                                      log_std_min,
                                      log_std_max,
-                                     action_scale=1) #ANTZy
+                                     action_scale=1)  #ANTZy
         self.actor_optimizer = tf.keras.optimizers.Adam(
             learning_rate=learning_rate)
         # self.actor_optimizer = tf.keras.optimizers.SGD(learning_rate=learning_rate)
@@ -80,25 +83,24 @@ class ReinforceAgent:
 
         if self.is_test is False:
             selected_action, log_prob, z = self.select_action(
-                tf.convert_to_tensor(state), tf.maximum(self.exploration_rate, self.min_exploration))
+                tf.convert_to_tensor(state),
+                tf.maximum(self.exploration_rate, self.min_exploration))
             selected_action = np.squeeze(selected_action.numpy(), axis=0)
             z = np.squeeze(z.numpy(), axis=0)
             next_state, reward, done, truncated, info = self.env.step(
                 selected_action)
-            # custom_reward = info[
-            #     'reward_survive'] * self.current_gamma_survive * info[
-            #         '_reward_survive'] + info['reward_forward'] * (
-            #             2 - self.current_gamma_survive
-            #         ) * info['_reward_forward'] + info['reward_ctrl'] * info[
-            #             '_reward_ctrl']
-            # self.current_gamma_survive *= self.gamma_survive
-            # reward = custom_reward
-            reward = reward
+            if self.custom_reward:
+                custom_reward = info[
+                    'reward_survive'] * self.current_gamma_survive + info[
+                        'reward_forward'] + info['reward_ctrl']
+                self.current_gamma_survive *= self.gamma_survive
+                reward = custom_reward
+            # reward = reward
 
             return next_state, reward, done, np.squeeze(
                 log_prob.numpy()), selected_action, truncated, z
 
-        *_, action = self.run_policy(tf.convert_to_tensor(state))
+        action, *_, action_det = self.run_policy(tf.convert_to_tensor(state))
         action = np.squeeze(action.numpy(), axis=0)
         next_state, reward, done, truncated, info = self.val_env.step(action)
         return next_state, reward, done
@@ -130,7 +132,7 @@ class ReinforceAgent:
                                              './reinforce_ckpts',
                                              max_to_keep=100)
         self.is_test = False
-        saved=False
+        saved = False
         last_saved = 0
         for i in range(num_epochs):
             log_probs = np.zeros(1000, dtype=np.float32)
@@ -153,7 +155,7 @@ class ReinforceAgent:
                 num_runs = j
                 if done == True:
                     if truncated == False:
-                        rewards[j] = -1
+                        rewards[j] = -5
                     break
                 if truncated == True:
                     break
@@ -191,30 +193,34 @@ class ReinforceAgent:
                 # data = list(mu)
                 # table = wandb.Table(data=data, columns=["scores"])
                 # wandb.log(
-                    # {
-                        # "my_histogram":
-                        # wandb.plot.histogram(table, "scores", title="Histogram")
-                    # },
-                    # step=i)
+                # {
+                # "my_histogram":
+                # wandb.plot.histogram(table, "scores", title="Histogram")
+                # },
+                # step=i)
 
                 print('Evaluate')
                 validation_reward = self.validate()
                 wandb.log({'Validation Reward': validation_reward}, step=i)
                 if validation_reward > 300:
                     self.actor.save_weights(f'./checkpoints/{checkpoint_name}')
-                    saved=True
+                    saved = True
                 if validation_reward > 990:
                     # manager.save()
-                    self.actor.save_weights(f'./checkpoints/{checkpoint_name}_val')
+                    self.actor.save_weights(
+                        f'./checkpoints/{checkpoint_name}_val')
                     # env.close()
                     # return
                 # manager.save()
+            if i % 250 == 0:
+                source = self.test(load=False)
+                save_video(source, f'tmp/REINFORCE_4_{i}')
             self.exploration_rate = self.exploration_rate * self.exploration_rate_update
             self.env.close()
         if saved == False:
 
             self.actor.save_weights(f'./checkpoints/{checkpoint_name}')
-                # manager.save()
+            # manager.save()
 
         self.env.close()
         return
@@ -229,18 +235,19 @@ class ReinforceAgent:
             total_reward += reward
             if done:
                 break
-        self.val_env.close()
+        # self.val_env.close()
         self.is_test = False
         return total_reward
 
-    def test(self, num=1000, env=None):
+    def test(self, num=1000, env=None, load=True):
         if env is not None:
             self.val_env = env
         state, *_ = self.val_env.reset()
         # self.actor =  tf.keras.models.load_model('./reinforce_ckpts')
 
         # latest = tf.train.latest_checkpoint('./checkpoints/my_checkpoint')
-        self.actor.load_weights(f'./checkpoints/{checkpoint_name}')
+        if load is True:
+            self.actor.load_weights(f'./checkpoints/{checkpoint_name}')
         self.is_test = True
         total_reward = 0
         frames = []
@@ -252,7 +259,7 @@ class ReinforceAgent:
             if done:
                 break
         print(total_reward)
-        self.val_env.close()
+        # self.val_env.close()
         self.is_test = False
         return frames
 
@@ -279,15 +286,17 @@ if __name__ == "__main__":
         # track hyperparameters and run metadata with wandb.config
         config={
             "seed": 42,
-            "ctrl_cost_weight": 0.5,
+            "ctrl_cost_weight": 0.4,
             "epochs": 30000,
-            "exploration_rate": 0.5,
+            "exploration_rate": 0.12,
             "exploration_update": 0.999,
-            "min_exploration": 0.1,
-            "log_std_min": -4.5,
+            "min_exploration": 0.06,
+            "log_std_min": -3.5,
             "log_std_max": 2.5,
             "learning_rate": 1e-4,
-            "gamma": 0.95
+            "gamma": 0.9,
+            "gamma_alive": 0.999,
+            "custom_reward": False
         })
     config = wandb.config
     # xvfb-run -a python basicAgent.py
@@ -301,13 +310,17 @@ if __name__ == "__main__":
     # env_name = 'InvertedPendulum-v4'
 
     val_env = gym.make(env_name, render_mode='rgb_array')
-    env = gym.make(env_name, max_episode_steps=1000)
+    env = gym.make(env_name,
+                   max_episode_steps=1000,
+                   ctrl_cost_weight=config.ctrl_cost_weight)
     agent = ReinforceAgent(env=env,
                            val_env=val_env,
                            exploration_rate=config.exploration_rate,
                            exploration_rate_update=config.exploration_update,
                            learning_rate=config.learning_rate,
                            gamma=config.gamma,
+                           custom_reward=config.custom_reward,
+                           gamma_survive=config.gamma_alive,
                            min_exploration=config.min_exploration,
                            log_std_min=config.log_std_min,
                            log_std_max=config.log_std_max)

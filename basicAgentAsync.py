@@ -84,7 +84,8 @@ class BasicAgent:
             selected_action, mu = self.run_model(
                 tf.convert_to_tensor(state))
             if self.is_test is True:
-                selected_action = tf.keras.activations.tanh(mu)
+                # selected_action = tf.keras.activations.tanh(mu)
+                pass
             selected_action = selected_action.numpy()
 
         self.transition = [state, selected_action]
@@ -107,7 +108,7 @@ class BasicAgent:
             self.replay_buffer.store(*self.transition)
 
             done = done | truncated
-            reward = reward * 5
+            reward = reward 
 
             return next_state, reward, done
 
@@ -193,7 +194,7 @@ class BasicAgent:
         val_scores = []
         score = np.zeros(self.num_envs)
         losses = []
-
+        save_num = 0
         # for i in range(1, num_iters):
         while self.n_steps < num_iters:
             # t1 = time.time()
@@ -276,6 +277,11 @@ class BasicAgent:
                     manager.save()
                 # print(f'<====== Validation:   {validation}')
                 wandb.log({"validation Reward": validation})
+            if self.n_steps % 100000 == 0 and self.n_steps > self.initial_random_steps:
+                source = self.test()
+                save_video(source, f'tmp/random{save_num}')
+                save_num += 1
+
 
         self.env.close()
         return scores, val_scores
@@ -303,7 +309,7 @@ class BasicAgent:
             total_reward += reward
             if done:
                 break
-        self.val_env.close()
+        # self.val_env.close()
         self.is_test = False
         return total_reward
 
@@ -323,8 +329,10 @@ class BasicAgent:
             if done:
                 break
         print(i)
+
         print(total_reward)
-        self.val_env.close()
+        # self.val_env.close()
+        self.is_test = False
         return frames
 
     def random_test(self, num=1000, env=None):
@@ -343,7 +351,7 @@ class BasicAgent:
                 break
         print(i)
         print(total_reward)
-        self.val_env.close()
+        # self.val_env.close()
         return frames
 
     def human_test(self, num=1000, env=None):
