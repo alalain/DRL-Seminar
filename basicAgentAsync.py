@@ -20,6 +20,7 @@ class BasicAgent:
                  initial_random_steps: int,
                  gamma: float = 0.99,
                  tau: float = 5e-3,
+                 reward_scale: float = 5,
                  gamma_survive: float = 0.99995,
                  num_envs: int = 10,
                  log_std_min=-3.5,
@@ -38,17 +39,19 @@ class BasicAgent:
 
         self.gamma_survive = gamma_survive
         self.current_gamma_survive = gamma_survive
+        self.reward_scale = reward_scale
 
         self.num_envs = num_envs
 
-        num_observations = env.observation_space.shape[1]
-        num_actions = env.action_space.shape[1]
+        num_observations = env.observation_space.shape[-1]
+        num_actions = env.action_space.shape[-1]
 
         self.target_entropy = tf.constant(-np.prod(
             (num_actions, ), dtype=np.float32).item())  # heuristic
+        self.target_entropy *= 0.69
         self.log_alpha = tf.Variable(tf.zeros(1, dtype=tf.float32),
                                      name="log_alpha")
-        self.alpha_optimizer = tf.keras.optimizers.Adam(learning_rate=3e-5)
+        self.alpha_optimizer = tf.keras.optimizers.Adam(learning_rate=3e-6)
 
         self.replay_buffer = ReplayBuffer(num_observations, num_actions,
                                           buffer_size, batch_size)
@@ -81,11 +84,10 @@ class BasicAgent:
             selected_action = self.env.action_space.sample()
         else:
             # selected_action = (self.actor(state, training=False)[0].numpy())
-            selected_action, mu = self.run_model(
-                tf.convert_to_tensor(state))
-            if self.is_test is True:
+            selected_action, mu = self.run_model(tf.convert_to_tensor(state))
+            # if self.is_test is True:
                 # selected_action = tf.keras.activations.tanh(mu)
-                pass
+                # pass
             selected_action = selected_action.numpy()
 
         self.transition = [state, selected_action]
@@ -96,19 +98,19 @@ class BasicAgent:
 
         if not self.is_test:
             next_state, reward, done, truncated, info = self.env.step(action)
-            custom_reward = info[
-                'reward_survive'] * self.current_gamma_survive * info[
-                    '_reward_survive'] + info['reward_forward'] * (
-                        2 - self.current_gamma_survive
-                    ) * info['_reward_forward'] + info['reward_ctrl'] * info[
+            custom_reward = info['reward_survive'] * info[
+                '_reward_survive'] + info['reward_forward'] * 5 * info[
+                    '_reward_forward'] + info['reward_ctrl'] * info[
                         '_reward_ctrl']
             self.current_gamma_survive *= self.gamma_survive
             # reward = custom_reward
-            self.transition += [5 * reward, next_state, done]
+            self.transition += [
+                custom_reward * self.reward_scale, next_state, done
+            ]
             self.replay_buffer.store(*self.transition)
 
             done = done | truncated
-            reward = reward 
+            reward = reward
 
             return next_state, reward, done
 
@@ -125,13 +127,14 @@ class BasicAgent:
                 new_action, log_prob, *_ = self.actor(state)
                 # alphaTape.watch(self.log_alpha)
                 alpha_loss = tf.math.reduce_mean(
-                    (-tf.exp(self.log_alpha) *
-                     tf.stop_gradient(log_prob + self.target_entropy)))
+                    -tf.exp(self.log_alpha) *
+                    (tf.stop_gradient(log_prob + self.target_entropy)))
                 # tf.convert_to_tensor(log_prob) + self.target_entropy)))
             alpha_grad = alphaTape.gradient(alpha_loss, self.log_alpha)
             self.alpha_optimizer.apply_gradients(
                 zip([alpha_grad], [self.log_alpha]))
             alpha = tf.exp(self.log_alpha)
+            # alpha = self.log_alpha
 
             mask = 1 - done
             q_a_pred = self.q_function_a(state, action)
@@ -154,7 +157,8 @@ class BasicAgent:
             actor_loss = tf.zeros(1)
             if self.n_steps % self.policy_update_rate == 0:
                 advantage = q_pred - tf.stop_gradient(v_pred)
-                actor_loss = tf.math.reduce_mean(alpha * log_prob - advantage)
+                # actor_loss = tf.math.reduce_mean(alpha * log_prob - advantage)
+                actor_loss = tf.math.reduce_mean(alpha * log_prob - q_pred)
 
         if self.n_steps % self.policy_update_rate == 0:
             actor_grad = actor_tape.gradient(actor_loss,
@@ -185,7 +189,7 @@ class BasicAgent:
         actor_ckpt = tf.train.Checkpoint(optimizer=self.actor_optimizer,
                                          net=self.actor)
         manager = tf.train.CheckpointManager(actor_ckpt,
-                                             './tf_ckpts',
+                                             './tf_ckpts_2',
                                              max_to_keep=100)
         self.is_test = False
         state, *_ = self.env.reset()
@@ -204,10 +208,10 @@ class BasicAgent:
             state, reward, done = self.take_step(action)
             # t22 = time.time()
             score += reward
-            for r, d, s in zip(reward, done, score):
+            for jj, (r, d, s) in enumerate(zip(reward, done, score)):
                 if d == True:
                     scores.append(s)
-                    score = 0
+                    score[jj] = 0
 
             # if done:
             # state, *_ = self.env.reset()
@@ -250,26 +254,29 @@ class BasicAgent:
             if self.n_steps % 500 == 0:
                 print(f'Step {self.n_steps.numpy()}')
                 if len(losses) > 0:
-                    wandb.log({
-                        'Actor loss': loss[0],
-                        'Q_a loss': loss[1],
-                        'Q_b loss': loss[2],
-                        'Vf loss': loss[3],
-                        'Alpha': tf.exp(self.log_alpha),
-                        'Train Rewards': np.mean(np.array(scores[-5:]))
-                    }, step=self.n_steps.numpy())
+                    wandb.log(
+                        {
+                            'Actor loss': loss[0],
+                            'Q_a loss': loss[1],
+                            'Q_b loss': loss[2],
+                            'Vf loss': loss[3],
+                            'Alpha': tf.exp(self.log_alpha),
+                            'Log Alpha': self.log_alpha,
+                            'Train Rewards': np.mean(np.array(scores[-5:]))
+                        },
+                        step=self.n_steps.numpy())
                     # print(f'Actor: {loss[0]}')
                     # print(f'Q A:   {loss[1]}')
                     # print(f'Q B:   {loss[2]}')
                     # print(f'Value: {loss[3]}')
                     # print(f'Alpha: {tf.exp(self.log_alpha)}')
                     # print(f'Reward:{np.mean(np.array(scores[-10:]))}')
-                else: 
-                    wandb.log({
-                        'Train Rewards': np.mean(np.array(scores[-5:]))
-                    }, step=self.n_steps.numpy())
+                else:
+                    wandb.log(
+                        {'Train Rewards': np.mean(np.array(scores[-5:]))},
+                        step=self.n_steps.numpy())
 
-            if self.n_steps % 50000 == 0:
+            if self.n_steps % 50000 == 0 and self.n_steps > self.initial_random_steps:
                 validation = self.validate()
                 val_scores.append(validation)
                 if (len(self.replay_buffer) >= self.batch_size
@@ -279,17 +286,17 @@ class BasicAgent:
                 wandb.log({"validation Reward": validation})
             if self.n_steps % 100000 == 0 and self.n_steps > self.initial_random_steps:
                 source = self.test()
-                save_video(source, f'tmp/random{save_num}')
+                save_video(source, f'tmp/random_00{save_num}')
                 save_num += 1
-
 
         self.env.close()
         return scores, val_scores
 
     def _target_soft_update(self, tau=None):
-        if tau is None:
-            tau = self.tau
+        # if tau is None:
+        #     tau = self.tau
 
+        tau = self.tau
         weights = []
         targets = self.v_target.trainable_weights
         bases = self.v_function.trainable_weights
@@ -398,14 +405,15 @@ if __name__ == "__main__":
 
         # track hyperparameters and run metadata with wandb.config
         config={
-            "seed": 42,
+            "seed": 420,
             "ctrl_cost_weight": 0.5,
-            "random_steps": 700000,
+            "random_steps": 500000,
             "buffer_size": 1000000,
             "batch_size": 256,
             "training_steps": 3000000,
-            "log_std_min": -3.5,
-            "log_std_max": 2.5
+            "log_std_min": -2.5,
+            "log_std_max": 3.5,
+            "reward_scale": 5,
         })
     config = wandb.config
     # xvfb-run -a python basicAgent.py
@@ -427,16 +435,27 @@ if __name__ == "__main__":
         return env
 
     # envs = gym.vector.AsyncVectorEnv([make_env, make_env, make_env, make_env ])
-    envs = gym.make_vec("Ant-v4",
-                        num_envs=10,
-                        healthy_reward=1,
-                        ctrl_cost_weight=config.ctrl_cost_weight,
-                        vectorization_mode='async')
-    val_env = gym.make(env_name, render_mode='rgb_array')
+    envs = gym.make_vec(
+        "Ant-v4",
+        num_envs=10,
+        healthy_reward=1,
+        # max_episode_steps=1000,
+        # use_contact_forces=True,
+        ctrl_cost_weight=config.ctrl_cost_weight,
+        vectorization_mode='async')
+    env = gym.make(env_name,
+                   max_episode_steps=1000,
+                   healthy_reward=1,
+                   ctrl_cost_weight=config.ctrl_cost_weight)
+    val_env = gym.make(env_name,
+                       healthy_reward=1,
+                       ctrl_cost_weight=config.ctrl_cost_weight,
+                       render_mode='rgb_array')
     agent = BasicAgent(env=envs,
                        val_env=val_env,
                        buffer_size=config.buffer_size,
                        batch_size=config.batch_size,
+                       reward_scale=config.reward_scale,
                        initial_random_steps=config.random_steps,
                        log_std_min=config.log_std_min,
                        log_std_max=config.log_std_max)

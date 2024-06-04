@@ -83,8 +83,8 @@ class Actor(tf.keras.Model):
         self.dense2 = layers.Dense(units_per_layer, activation="relu")
         # self.dense3 = layers.Dense(units_per_layer, activation="relu")
 
-        uniform_init = tf.keras.initializers.RandomUniform(-0.1,
-                                                           0.1,
+        uniform_init = tf.keras.initializers.RandomUniform(-0.01,
+                                                           0.01,
                                                            seed=42)
         uniform_init = tf.keras.initializers.GlorotNormal(seed=42)
         self.log_std_layer = layers.Dense(num_actions,
