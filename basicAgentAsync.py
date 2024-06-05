@@ -48,10 +48,10 @@ class BasicAgent:
 
         self.target_entropy = tf.constant(-np.prod(
             (num_actions, ), dtype=np.float32).item())  # heuristic
-        self.target_entropy *= 0.69
+        # self.target_entropy *= 0.69
         self.log_alpha = tf.Variable(tf.zeros(1, dtype=tf.float32),
                                      name="log_alpha")
-        self.alpha_optimizer = tf.keras.optimizers.Adam(learning_rate=3e-6)
+        self.alpha_optimizer = tf.keras.optimizers.Adam(learning_rate=6e-6)
 
         self.replay_buffer = ReplayBuffer(num_observations, num_actions,
                                           buffer_size, batch_size)
@@ -98,14 +98,14 @@ class BasicAgent:
 
         if not self.is_test:
             next_state, reward, done, truncated, info = self.env.step(action)
-            custom_reward = info['reward_survive'] * info[
-                '_reward_survive'] + info['reward_forward'] * 5 * info[
-                    '_reward_forward'] + info['reward_ctrl'] * info[
-                        '_reward_ctrl']
+            # custom_reward = info['reward_survive'] * info[
+                # '_reward_survive'] + info['reward_forward'] * 5 * info[
+                    # '_reward_forward'] + info['reward_ctrl'] * info[
+                        # '_reward_ctrl']
             self.current_gamma_survive *= self.gamma_survive
             # reward = custom_reward
             self.transition += [
-                custom_reward * self.reward_scale, next_state, done
+                reward * self.reward_scale, next_state, done
             ]
             self.replay_buffer.store(*self.transition)
 
@@ -189,7 +189,7 @@ class BasicAgent:
         actor_ckpt = tf.train.Checkpoint(optimizer=self.actor_optimizer,
                                          net=self.actor)
         manager = tf.train.CheckpointManager(actor_ckpt,
-                                             './tf_ckpts_2',
+                                             './tf_ckpts_3',
                                              max_to_keep=100)
         self.is_test = False
         state, *_ = self.env.reset()
@@ -316,6 +316,7 @@ class BasicAgent:
             total_reward += reward
             if done:
                 break
+            state = next_state
         # self.val_env.close()
         self.is_test = False
         return total_reward
@@ -335,6 +336,7 @@ class BasicAgent:
             total_reward += reward
             if done:
                 break
+            state = next_state
         print(i)
 
         print(total_reward)
@@ -356,6 +358,7 @@ class BasicAgent:
             total_reward += reward
             if done:
                 break
+            state = next_state
         print(i)
         print(total_reward)
         # self.val_env.close()
@@ -377,6 +380,7 @@ class BasicAgent:
             if done:
                 print('gebrochen')
                 break
+            state = next_state
         print(i)
         print(total_reward)
         self.n_steps = 0
@@ -414,6 +418,8 @@ if __name__ == "__main__":
             "log_std_min": -2.5,
             "log_std_max": 3.5,
             "reward_scale": 5,
+            "alpha_lr": 6e-6,
+            "network_lr": 3e-4
         })
     config = wandb.config
     # xvfb-run -a python basicAgent.py
