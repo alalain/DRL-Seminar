@@ -169,3 +169,4 @@ MUJOCO_LOG.TXT
 checkpoints/*
 docker/run_docker.sh
 docker/run_docker.sh
+docker/run_docker copy.sh
