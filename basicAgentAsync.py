@@ -157,8 +157,8 @@ class BasicAgent:
             actor_loss = tf.zeros(1)
             if self.n_steps % self.policy_update_rate == 0:
                 advantage = q_pred - tf.stop_gradient(v_pred)
-                # actor_loss = tf.math.reduce_mean(alpha * log_prob - advantage)
-                actor_loss = tf.math.reduce_mean(alpha * log_prob - q_pred)
+                actor_loss = tf.math.reduce_mean(alpha * log_prob - advantage)
+                # actor_loss = tf.math.reduce_mean(alpha * log_prob - q_pred)
 
         if self.n_steps % self.policy_update_rate == 0:
             actor_grad = actor_tape.gradient(actor_loss,
@@ -189,7 +189,7 @@ class BasicAgent:
         actor_ckpt = tf.train.Checkpoint(optimizer=self.actor_optimizer,
                                          net=self.actor)
         manager = tf.train.CheckpointManager(actor_ckpt,
-                                             './tf_ckpts_3',
+                                             './tf_ckpts_4',
                                              max_to_keep=100)
         self.is_test = False
         state, *_ = self.env.reset()
@@ -286,7 +286,7 @@ class BasicAgent:
                 wandb.log({"validation Reward": validation})
             if self.n_steps % 100000 == 0 and self.n_steps > self.initial_random_steps:
                 source = self.test()
-                save_video(source, f'tmp/random_00{save_num}')
+                save_video(source, f'tmp/SAC_advantage_{save_num}')
                 save_num += 1
 
         self.env.close()
@@ -411,15 +411,16 @@ if __name__ == "__main__":
         config={
             "seed": 420,
             "ctrl_cost_weight": 0.5,
-            "random_steps": 500000,
+            "random_steps": 200000,
             "buffer_size": 1000000,
             "batch_size": 256,
-            "training_steps": 3000000,
+            "training_steps": 4000000,
             "log_std_min": -2.5,
             "log_std_max": 3.5,
             "reward_scale": 5,
-            "alpha_lr": 6e-6,
-            "network_lr": 3e-4
+            "alpha_lr": 3e-6,
+            "network_lr": 3e-4,
+            "Advantage Loss": True
         })
     config = wandb.config
     # xvfb-run -a python basicAgent.py

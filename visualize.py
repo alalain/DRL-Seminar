@@ -40,7 +40,7 @@ actor_optimizer = tf.keras.optimizers.Adam(learning_rate=3e-4)
 actor_ckpt = tf.train.Checkpoint(optimizer=actor_optimizer,
                                  net=actor)
 manager = tf.train.CheckpointManager(actor_ckpt,
-                                             './tf_ckpts',
+                                             './tf_ckpts_3',
                                              max_to_keep=100)
 
 manager.restore_or_initialize()
@@ -57,7 +57,8 @@ total_reward = 0
 single_run = 1
 for i in range(1000):
 
-    action, *mu = actor(np.expand_dims(state, axis=0))
+    action, log_prob, mu,std = actor(np.expand_dims(state, axis=0))
+    action = tf.math.tanh(mu)
     # actions, *mus = actor(states)
     action = action.numpy().squeeze()
     # actions = actions.numpy()
@@ -80,6 +81,6 @@ for i in range(1000):
     # states = next_states
 
 print(total_reward)
-save_video(frames, 'tmp/wadafug_5')
+save_video(frames, 'tmp/wadafug_6')
 # print(total_rewards)
 
