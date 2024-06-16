@@ -23,8 +23,36 @@ class BasicAgent:
                  reward_scale: float = 5,
                  gamma_survive: float = 0.99995,
                  num_envs: int = 10,
-                 log_std_min=-3.5,
-                 log_std_max=2.5):
+                 log_std_min: float = -3.5,
+                 log_std_max: float = 2.5):
+        """
+        Parameters
+        ----------
+        env
+            The Environment the agent will train in
+        val_env
+            Environment to for evaluation purposes
+        buffer_size
+            Size of the Replay Buffer used by the Agent
+        batch_size
+            Batch size used in each training step
+        initial_random_steps
+            Number of random steps performed at the beginning of training
+        gamma
+            Gamma for exponential decaying of the reward
+        tau
+            Smoothing factor for the soft updtae of the value network
+        reward_scale
+            Scale applied to the reward given by the environment
+        gamma_survive
+            Decay factor for the reward for surviving
+        num_envs
+            Number of parallel environments
+        log_std_min
+            min std of actor distribution
+        log_std_max
+            max std of actor distribution
+        """
 
         self.env = env
         self.val_env = val_env
