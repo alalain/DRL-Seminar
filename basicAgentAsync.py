@@ -102,11 +102,39 @@ class BasicAgent:
 
     @tf.function()
     def run_model(self, state):
+        """
+        Tf function to speed up action selection
+
+        Parameters
+        ----------
+        state : 
+            state for which the next action shold be calculated
+
+        Returns
+        -------
+            selected action and the mus from the underlying distribution
+        """
         selected_action, log_prob, mu, std = self.actor(state, training=False)
         return selected_action, mu
 
     def select_action(self, state: np.ndarray) -> np.ndarray:
-        """Select an action from the input state."""
+        """
+        Selects the next action, the agent will perform. This function also handles
+        the initial random steps
+
+        Parameters
+        ----------
+        state : np.ndarray
+            Current state of in the environments
+            
+
+        Returns
+        -------
+        np.ndarray
+            selected action
+            
+
+        """
         # if initial random action should be conducted
         if self.n_steps < self.initial_random_steps and not self.is_test:
             selected_action = self.env.action_space.sample()
@@ -124,6 +152,23 @@ class BasicAgent:
 
     def take_step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool]:
 
+        """
+        Takes a step in the environment based on the provided action.
+        Also handles the reward and pushing the new data to the replay buffer
+
+        Parameters
+        ----------
+        action : np.ndarray
+            action to perform
+            
+
+        Returns
+        -------
+        Tuple[np.ndarray, float, bool]
+            Contains: the next state, current reward and if the done flags from the environment
+            
+
+        """
         if not self.is_test:
             next_state, reward, done, truncated, info = self.env.step(action)
             # custom_reward = info['reward_survive'] * info[
@@ -148,6 +193,33 @@ class BasicAgent:
     # @tf.function(reduce_retracing=True)
     @tf.function()
     def update_model(self, state, next_state, action, reward, done):
+        """Perform a training step on the SAC networks 
+
+        Parameters
+        ----------
+        state : 
+            batch containing the states
+            
+        next_state : 
+            batch containing the next states
+            
+        action : 
+            batch containing the performed actions
+            
+        reward : 
+            batch containing the rewards
+            
+        done : 
+            batch containing the done flags
+            
+
+        Returns
+        -------
+        actor, q-function, value-function and alpha parameter loss
+        
+            
+
+        """
         with tf.GradientTape() as actor_tape, tf.GradientTape(
         ) as q_a_tape, tf.GradientTape() as q_b_tape, tf.GradientTape(
         ) as v_tape:
@@ -184,9 +256,9 @@ class BasicAgent:
 
             actor_loss = tf.zeros(1)
             if self.n_steps % self.policy_update_rate == 0:
-                advantage = q_pred - tf.stop_gradient(v_pred)
-                actor_loss = tf.math.reduce_mean(alpha * log_prob - advantage)
-                # actor_loss = tf.math.reduce_mean(alpha * log_prob - q_pred)
+                # advantage = q_pred - tf.stop_gradient(v_pred)
+                # actor_loss = tf.math.reduce_mean(alpha * log_prob - advantage)
+                actor_loss = tf.math.reduce_mean(alpha * log_prob - q_pred)
 
         if self.n_steps % self.policy_update_rate == 0:
             actor_grad = actor_tape.gradient(actor_loss,
@@ -209,11 +281,24 @@ class BasicAgent:
         self.v_optimizer.apply_gradients(
             zip(v_grad, self.v_function.trainable_weights))
 
-        #         print(alpha)
-        #         print(log_prob)
         return actor_loss, q_a_loss, q_b_loss, vf_loss
 
     def train(self, num_iters):
+        """
+        Training functon to train with the Agent
+
+        Parameters
+        ----------
+        num_iters : 
+            Number of training steps to perform
+            
+
+        Returns
+        -------
+        Tuple(list, list)
+            lists containing the trainign scores and validation scores
+
+        """
         actor_ckpt = tf.train.Checkpoint(optimizer=self.actor_optimizer,
                                          net=self.actor)
         manager = tf.train.CheckpointManager(actor_ckpt,
@@ -227,24 +312,15 @@ class BasicAgent:
         score = np.zeros(self.num_envs)
         losses = []
         save_num = 0
-        # for i in range(1, num_iters):
         while self.n_steps < num_iters:
-            # t1 = time.time()
             action = self.select_action(state)
-            # t2 = time.time()
-            # print(action)
             state, reward, done = self.take_step(action)
-            # t22 = time.time()
             score += reward
             for jj, (r, d, s) in enumerate(zip(reward, done, score)):
                 if d == True:
                     scores.append(s)
                     score[jj] = 0
 
-            # if done:
-            # state, *_ = self.env.reset()
-            # scores.append(score)
-            # score = 0
 
             if (len(self.replay_buffer) >= self.batch_size
                     and self.n_steps > self.initial_random_steps):
@@ -262,23 +338,13 @@ class BasicAgent:
                     actions = tf.convert_to_tensor(actions)
                     rewards = tf.convert_to_tensor(rewards)
                     dones = tf.convert_to_tensor(dones)
-                    # t4 = time.time()
 
                     loss = self.update_model(states, next_state, actions,
                                              rewards, dones)
-                    # t5 = time.time()
 
                     losses.append(loss)
-                    # print('===========')
-                    # print(t2-t1)
-                    # print(t22-t2)
-                    # print(t4 - t3)
-                    # print(t5 - t4)
             else:
                 self.n_steps.assign_add(self.num_envs)
-                # print('===========')
-                # print(t2-t1)
-                # print(t22-t2)
             if self.n_steps % 500 == 0:
                 print(f'Step {self.n_steps.numpy()}')
                 if len(losses) > 0:
@@ -293,12 +359,6 @@ class BasicAgent:
                             'Train Rewards': np.mean(np.array(scores[-5:]))
                         },
                         step=self.n_steps.numpy())
-                    # print(f'Actor: {loss[0]}')
-                    # print(f'Q A:   {loss[1]}')
-                    # print(f'Q B:   {loss[2]}')
-                    # print(f'Value: {loss[3]}')
-                    # print(f'Alpha: {tf.exp(self.log_alpha)}')
-                    # print(f'Reward:{np.mean(np.array(scores[-10:]))}')
                 else:
                     wandb.log(
                         {'Train Rewards': np.mean(np.array(scores[-5:]))},
@@ -321,19 +381,22 @@ class BasicAgent:
         return scores, val_scores
 
     def _target_soft_update(self, tau=None):
-        # if tau is None:
-        #     tau = self.tau
-
         tau = self.tau
         weights = []
         targets = self.v_target.trainable_weights
         bases = self.v_function.trainable_weights
         for base, target in zip(bases, targets):
             target.assign(base * tau + target * (1 - tau))
-            # weights.append(weight * tau + targets[i] * (1 - tau))
-        # self.v_target.set_weights(weights)
 
     def validate(self):
+        """
+        Run a validation run on the validation environment
+
+        Returns
+        -------
+        total reward achieved by the validation run
+
+        """
         state, *_ = self.val_env.reset()
         self.is_test = True
         total_reward = 0
@@ -345,11 +408,27 @@ class BasicAgent:
             if done:
                 break
             state = next_state
-        # self.val_env.close()
         self.is_test = False
         return total_reward
 
     def test(self, num=1000, env=None):
+        """
+        Runs a validation/test run and renders the environment each step
+
+        Parameters
+        ----------
+        num : 
+            number of steps
+            
+        env : 
+            optional: Environment to run the test in
+            
+
+        Returns
+        -------
+        list of rendered images
+
+        """
         if env is not None:
             self.val_env = env
         state, *_ = self.val_env.reset()
@@ -373,6 +452,22 @@ class BasicAgent:
         return frames
 
     def random_test(self, num=1000, env=None):
+        """
+        Runs the environment with random steps
+
+        Parameters
+        ----------
+        num : 
+            max number of steps
+            
+        env : 
+            environment to run in
+            
+
+        Returns
+        -------
+
+        """
         if env is not None:
             self.val_env = env
         state, *_ = self.val_env.reset()
@@ -390,29 +485,6 @@ class BasicAgent:
         print(i)
         print(total_reward)
         # self.val_env.close()
-        return frames
-
-    def human_test(self, num=1000, env=None):
-        if env is not None:
-            self.env = env
-        state, *_ = self.env.reset()
-        self.n_steps = 0
-        self.is_test = True
-        frames = []
-        total_reward = 0
-        for i in range(num):
-            action = self.select_action(state)
-            next_state, reward, done = self.take_step(action)
-            self.n_steps += 1
-            total_reward += reward
-            if done:
-                print('gebrochen')
-                break
-            state = next_state
-        print(i)
-        print(total_reward)
-        self.n_steps = 0
-        self.env.close()
         return frames
 
 
@@ -448,34 +520,19 @@ if __name__ == "__main__":
             "reward_scale": 5,
             "alpha_lr": 3e-6,
             "network_lr": 3e-4,
-            "Advantage Loss": True
+            "Advantage Loss": False
         })
     config = wandb.config
-    # xvfb-run -a python basicAgent.py
-    #     env = gym.make("Ant-v4", render_mode="rgb_array")
-    #     env = gym.make("Ant-v5", render_mode="human")
-    #     agent = BasicAgent(env, 100, 32, 2)
-    #     source = agent.human_test()
     tf.random.set_seed(config.seed)
     env_name = 'Ant-v4'
 
     # env_name = 'InvertedPendulum-v4'
 
-    # env = gym.make(env_name, max_episode_steps=1000)
-    def make_env():
-        env = gym.make(env_name,
-                       max_episode_steps=1000,
-                       ctrl_cost_weight=config.ctrl_cost_weight,
-                       healthy_reward=0.05)
-        return env
-
-    # envs = gym.vector.AsyncVectorEnv([make_env, make_env, make_env, make_env ])
+    # set up environements
     envs = gym.make_vec(
         "Ant-v4",
         num_envs=10,
         healthy_reward=1,
-        # max_episode_steps=1000,
-        # use_contact_forces=True,
         ctrl_cost_weight=config.ctrl_cost_weight,
         vectorization_mode='async')
     env = gym.make(env_name,
@@ -486,6 +543,7 @@ if __name__ == "__main__":
                        healthy_reward=1,
                        ctrl_cost_weight=config.ctrl_cost_weight,
                        render_mode='rgb_array')
+    # setup agent
     agent = BasicAgent(env=envs,
                        val_env=val_env,
                        buffer_size=config.buffer_size,
@@ -495,11 +553,11 @@ if __name__ == "__main__":
                        log_std_min=config.log_std_min,
                        log_std_max=config.log_std_max)
 
+    # initial random run for testign purposes
     source = agent.random_test()
     save_video(source, 'tmp/random')
-    #     agent.human_test(4000)
+    # train agent, allowing to interrupt with keyboard interrupt
     try:
-        # scores = agent.train(150000)
         scores, val_scores = agent.train(config.training_steps)
     except KeyboardInterrupt:
         scores = []
@@ -510,32 +568,3 @@ if __name__ == "__main__":
     env = gym.make(env_name, render_mode="rgb_array")
     source = agent.test(1000, env)
 
-    print(scores)
-    import matplotlib.pyplot as plt
-    plt.plot(scores)
-    plt.savefig('tmp/rewardd.png')
-    plt.close('all')
-    plt.plot(val_scores)
-    plt.savefig('tmp/val.png')
-    plt.show()
-
-    print("trained")
-    print("=" * 30)
-    import cv2
-
-    save_video(source, 'tmp/new_variances')
-
-    source = agent.random_test()
-    save_video(source, 'tmp/random')
-    exit()
-    output_name = "tmp/test3Diaggg"
-    fps = 30
-    out = cv2.VideoWriter(
-        output_name + ".mp4",
-        cv2.VideoWriter_fourcc(*"mp4v"),
-        fps,
-        (source[0].shape[1], source[0].shape[0]),
-    )
-    for i in range(len(source)):
-        out.write(source[i])
-    out.release()

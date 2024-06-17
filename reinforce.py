@@ -30,6 +30,36 @@ class ReinforceAgent:
                  custom_reward=False,
                  log_std_max=2.5):
 
+        """
+
+        Parameters
+        ----------
+        log_std_min : 
+           min log std for the policy 
+        custom_reward : 
+           Enable custom reward, if false, reward from env is used 
+        log_std_max : 
+           max log std for the policy 
+        env : gym.Env
+           Environment to train on 
+        val_env : gym.Env
+           environment to validate on 
+        num_epochs : int
+           number of training epochs 
+        gamma_survive : float
+           exponential decay weight for survive reward, only valid if custom_reward=True 
+        gamma : float
+           reward gamma 
+        learning_rate : float
+           learning rate for the actor 
+        exploration_rate : float
+           initial exploration rate 
+        exploration_rate_update : float
+           exponential decay param for the exploration rate 
+        min_exploration : float
+            minimal expoloration rate
+
+        """
         self.env = env
         self.val_env = val_env
 
@@ -61,6 +91,18 @@ class ReinforceAgent:
 
     @tf.function()
     def run_policy(self, state):
+        """
+        Tf function to speed up policy
+
+        Parameters
+        ----------
+        state : 
+           batch containg stets to run policy on 
+
+        Returns
+        -------
+            
+        """
         selected_action, log_prob, mu, std, dist, det_action, z = self.actor(
             state, training=False)
 
@@ -69,6 +111,20 @@ class ReinforceAgent:
     @tf.function()
     def select_action(self, state, exploration_rate):
 
+        """
+
+        Parameters
+        ----------
+        state : 
+            current state(s)
+        exploration_rate : 
+            exploration rate at which random actions are sampled
+
+        Returns
+        -------
+        
+            
+        """
         selected_action, log_prob, mu, std, dist, det, z = self.actor(
             state, training=False)
         if tf.random.uniform(shape=[], minval=0.,
@@ -81,6 +137,20 @@ class ReinforceAgent:
 
     def take_step(self, state) -> Tuple[np.ndarray, float, bool]:
 
+        """
+        Take a step in the environment
+
+        Parameters
+        ----------
+        state : 
+            current state
+
+        Returns
+        -------
+        Tuple[np.ndarray, float, bool]
+            
+
+        """
         if self.is_test is False:
             selected_action, log_prob, z = self.select_action(
                 tf.convert_to_tensor(state),
@@ -108,6 +178,30 @@ class ReinforceAgent:
     # @tf.function(reduce_retracing=True)
     @tf.function()
     def update_model(self, states, actions, reward, num_valid):
+        """
+        Update model based on the calculated losses
+        batches will allways be 1000 long even if less steps were made.
+        The truncation is done with the num_valid parameter. THis is due to
+        the TF tracing which doesn't like input variance in the input dimensions of
+        a tf.function
+
+        Parameters
+        ----------
+        states : 
+            batch containing states
+        actions : 
+           batch containing actions 
+        reward : 
+           batch containing rewards to go 
+        num_valid : 
+           number of valid steps 
+
+        Returns
+        -------
+         
+            
+
+        """
         with tf.GradientTape() as actor_tape:
             *_, mu, std, ddist, __, z = self.actor(states, training=True)
             dist = tfp.distributions.Normal(mu, std, allow_nan_stats=False)
@@ -126,6 +220,15 @@ class ReinforceAgent:
         return loss, mu[:num_valid]
 
     def train(self, num_epochs):
+        """
+        Training loop for to train with the REINFORCE agent
+
+        Parameters
+        ----------
+        num_epochs : 
+           number of training epochs 
+
+        """
         actor_ckpt = tf.train.Checkpoint(optimizer=self.actor_optimizer,
                                          net=self.actor)
         manager = tf.train.CheckpointManager(actor_ckpt,
@@ -169,13 +272,6 @@ class ReinforceAgent:
                 tf.convert_to_tensor(states), tf.convert_to_tensor(zs),
                 tf.convert_to_tensor(rewards_to_go), tf.Variable(num_runs + 1))
             mu = mu.numpy()
-            # import ipdb; ipdb.set_trace()
-            # for j in range(num_runs):
-            #     actor_loss += self.update_model(
-            #         tf.convert_to_tensor(np.expand_dims(states[j], 0)),
-            #         tf.convert_to_tensor(np.expand_dims(actions[j], 0)),
-            #         tf.convert_to_tensor(rewards_to_go[j]),
-            #         tf.Variable(num_runs))
             wandb.log(
                 {
                     'Actor loss': actor_loss / num_runs,
@@ -190,14 +286,6 @@ class ReinforceAgent:
                 last_saved = total_reward
                 saved = True
             if i % 10 == 0:
-                # data = list(mu)
-                # table = wandb.Table(data=data, columns=["scores"])
-                # wandb.log(
-                # {
-                # "my_histogram":
-                # wandb.plot.histogram(table, "scores", title="Histogram")
-                # },
-                # step=i)
 
                 print('Evaluate')
                 validation_reward = self.validate()
@@ -226,6 +314,15 @@ class ReinforceAgent:
         return
 
     def validate(self):
+        """
+        Validate current model
+
+        Returns
+        -------
+        
+           total reward from the validation run 
+
+        """
         state, *_ = self.val_env.reset()
         self.is_test = True
         total_reward = 0
@@ -240,6 +337,23 @@ class ReinforceAgent:
         return total_reward
 
     def test(self, num=1000, env=None, load=True):
+        """
+
+        Parameters
+        ----------
+        num : 
+          number of steps  
+        env : 
+           optinal new environment 
+        load : 
+           flag, if checkpoint should be loaded 
+
+        Returns
+        -------
+        
+            
+
+        """
         if env is not None:
             self.val_env = env
         state, *_ = self.val_env.reset()
@@ -299,11 +413,6 @@ if __name__ == "__main__":
             "custom_reward": False
         })
     config = wandb.config
-    # xvfb-run -a python basicAgent.py
-    #     env = gym.make("Ant-v4", render_mode="rgb_array")
-    #     env = gym.make("Ant-v5", render_mode="human")
-    #     agent = BasicAgent(env, 100, 32, 2)
-    #     source = agent.human_test()
     tf.random.set_seed(42)
     env_name = 'Ant-v4'
 
@@ -334,21 +443,4 @@ if __name__ == "__main__":
     env = gym.make(env_name, render_mode="rgb_array")
     source = agent.test(1000, env)
 
-    print("trained")
-    print("=" * 30)
-    import cv2
-
     save_video(source, 'tmp/REINFORCE1')
-
-    exit()
-    output_name = "tmp/test3Diaggg"
-    fps = 30
-    out = cv2.VideoWriter(
-        output_name + ".mp4",
-        cv2.VideoWriter_fourcc(*"mp4v"),
-        fps,
-        (source[0].shape[1], source[0].shape[0]),
-    )
-    for i in range(len(source)):
-        out.write(source[i])
-    out.release()
