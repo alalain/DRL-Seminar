@@ -79,7 +79,7 @@ class BasicAgent:
         # self.target_entropy *= 0.69
         self.log_alpha = tf.Variable(tf.zeros(1, dtype=tf.float32),
                                      name="log_alpha")
-        self.alpha_optimizer = tf.keras.optimizers.Adam(learning_rate=6e-6)
+        self.alpha_optimizer = tf.keras.optimizers.Adam(learning_rate=3e-6)
 
         self.replay_buffer = ReplayBuffer(num_observations, num_actions,
                                           buffer_size, batch_size)
@@ -302,7 +302,7 @@ class BasicAgent:
         actor_ckpt = tf.train.Checkpoint(optimizer=self.actor_optimizer,
                                          net=self.actor)
         manager = tf.train.CheckpointManager(actor_ckpt,
-                                             './tf_ckpts_4',
+                                             './tf_ckpts_5',
                                              max_to_keep=100)
         self.is_test = False
         state, *_ = self.env.reset()
@@ -374,7 +374,7 @@ class BasicAgent:
                 wandb.log({"validation Reward": validation})
             if self.n_steps % 100000 == 0 and self.n_steps > self.initial_random_steps:
                 source = self.test()
-                save_video(source, f'tmp/SAC_advantage_{save_num}')
+                save_video(source, f'tmp/SAC_Q_LOSS{save_num}')
                 save_num += 1
 
         self.env.close()
