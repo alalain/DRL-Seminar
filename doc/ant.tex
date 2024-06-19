@@ -72,16 +72,16 @@ The agent sucessfuly trained a policy to balance the pendulum. This policy can b
     \label{REIN:Pen_tra}
 \end{figure}
 
-Showing that the implemented agent is able to learn the goal was to use it to train a policy 
+Showing that the implemented agent is able to learn the goal was to use it to train a policy
 for the Ant environment.
-This step turned out to be more challenging than anticipated. 
-With the environemnt being more complex it was expected, that more training would be 
+This step turned out to be more challenging than anticipated.
+With the environemnt being more complex it was expected, that more training would be
 needed to achieve good results.
 Within the given time frame the best result was a standing ant.
 Figures \ref{REIN:ant_eval} and \ref{REIN:ant_eval} show the corresponding learning curevs.
 The depicted training took around 18 hours.
-The probelm that the ant did not learn to move forward lies probably in the hyperparameters like the 
-$\epsilon$ needed to explore. Additionally the REINFORCE actor may not be a well suited actor to 
+The probelm that the ant did not learn to move forward lies probably in the hyperparameters like the
+$\epsilon$ needed to explore. Additionally the REINFORCE actor may not be a well suited actor to
 train the ant due to its simplicity.
 \begin{figure}
     \centering
@@ -102,11 +102,11 @@ train the ant due to its simplicity.
 \section{SAC}
 As a more advanced agent, an SAC agent was implemented to train the ant.
 The implementation was based on the Notebook provieded in excersice 7, and \cite{haarnoja2018soft}.
-A challenging part of this Agent was to set up the hyperparameters the right way. 
-In the first expereiments a phenomenon occured, that the $\alpha$ parameter first went down to zero as 
-expected, but suddendly exploded towards infinity. 
-This was due to the numeric log probabilites of the action going towards infinity when the standard deviations 
-in the gaussian policies are to small. 
+A challenging part of this Agent was to set up the hyperparameters the right way.
+In the first expereiments a phenomenon occured, that the $\alpha$ parameter first went down to zero as
+expected, but suddendly exploded towards infinity.
+This was due to the numeric log probabilites of the action going towards infinity when the standard deviations
+in the gaussian policies are to small.
 The problem has been solved by changing the parameter initailization for the actor network and increasing the minimal
 standard deviation in the policy.
 With similar training lengths as with the REINFORCE agent, the SAC agent achieves much better results.
@@ -131,19 +131,42 @@ However the results are not as good as the ones provided by \cite{haarnoja2018so
 \newpage
 \section{SAC}
 As a more advanced agent, an SAC agent was implemented to train the ant.
-The implementation was based on the Notebook provieded in excersice 7, and \cite{haarnoja2018soft}.
-A challenging part of this Agent was to set up the hyperparameters the right way. 
-In the first expereiments a phenomenon occured, that the $\alpha$ parameter first went down to zero as 
-expected, but suddendly exploded towards infinity. 
-This was due to the numeric log probabilites of the action going towards infinity when the standard deviations 
-in the gaussian policies are to small. 
+The implementation was based on the Notebook provieded in excersice 7, and \cite{haarnoja2018soft} with
+the automated entropy adjustement form \cite{haarnoja2019soft}.
+A challenging part of this Agent was to set up the hyperparameters the right way.
+In the first expereiments a phenomenon occured, that the $\alpha$ parameter first went down to zero as
+expected, but suddendly exploded towards infinity.
+This was due to the numeric log probabilites of the action going towards infinity when the standard deviations
+in the gaussian policies are to small.
 The problem has been solved by changing the parameter initailization for the actor network and increasing the minimal
 standard deviation in the policy.
 With similar training lengths as with the REINFORCE agent, the SAC agent achieves much better results.
 Since SAC is a off policy learner, the agent can take much more training steps with the same amount of environment steps.
 The latter turned out to be the biggest bottleneck.
 However the results are not as good as the ones provided by \cite{haarnoja2018soft}.
-000
+Several trainings with different settings were made.
+The SAC seemed to be quite robust against minor chnages in the hyperparameters.
+Also the outcome was similar whether the loss is based on the learned Q-function or
+is an advantage consitsing of the learned Q and Value function.
+However one training run stood out and it was the one with the least initial random steps.
+Either it was luck or the initial random steps may be a hyperparameter worth finetuning.
+Due to the lengths of the trainings this idea could not be further investigated before submission.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=15cm]{SAC_actor_loss.png}
+    \caption{Actor loss, in green is the run with 100'000 initial random steps
+    and in blue the run with 200'000 inital random steps.}
+    \label{SAC:acc_loss}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=15cm]{SAC_train_reward.png}
+    \caption{Training environments rewards, in green is the run with 100'000 initial random steps
+    and in blue the run with 200'000 inital random steps.}
+    \label{SAC:tr_rew}
+\end{figure}
 
 \bibliography{mybib}{}
 \bibliographystyle{plain}
