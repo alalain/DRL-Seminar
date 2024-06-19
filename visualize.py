@@ -56,7 +56,10 @@ ckpt_path = './tf_ckpts_4/ckpt-'
 # manager.restore_or_initialize()
 mean_rewards = []
 stoc_mean_rewards = []
-for i in range(1, 100):
+for i in range(50, 100):
+    # i = 69
+    # i = 58
+    i = 68
     # mean_rewards.append(i)
     # continue
     try:
@@ -82,23 +85,23 @@ for i in range(1, 100):
     single_run = 1
     for i in range(1000):
 
-        # action, log_prob, mu,std = actor(np.expand_dims(state, axis=0))
-        # action = tf.math.tanh(mu)
-        # action = action.numpy().squeeze()
-        # next_state, reward, done, trunc, info = val_env.step(action)
-        # frames.append(val_env.render())
-        # state = next_state
-        # single_run = 1-done
-        # total_reward += reward * single_run
+        action, log_prob, mu,std = actor(np.expand_dims(state, axis=0))
+        action = tf.math.tanh(mu)
+        action = action.numpy().squeeze()
+        next_state, reward, done, trunc, info = val_env.step(action)
+        frames.append(val_env.render())
+        state = next_state
+        single_run = 1-done
+        total_reward += reward * single_run
 
-        actions, log_probs, mus, stds = actor(states)
-        actions = tf.math.tanh(mus)
-        actions = actions.numpy()
-        next_states, rewards, dones, truncs, infos = envs.step(actions)
-
-        done_mask = done_mask & np.invert(dones)
-        total_rewards += rewards * done_mask
-        states = next_states
+        # actions, log_probs, mus, stds = actor(states)
+        # actions = tf.math.tanh(mus)
+        # actions = actions.numpy()
+        # next_states, rewards, dones, truncs, infos = envs.step(actions)
+        #
+        # done_mask = done_mask & np.invert(dones)
+        # total_rewards += rewards * done_mask
+        # states = next_states
 
         # stoc_actions, log_probs, stoc_mus, stds = actor(stoc_states)
         # actions = stoc_actions.numpy()
@@ -109,21 +112,29 @@ for i in range(1, 100):
         # stoc_total_rewards += stoc_rewards * stoc_done_mask
         # stoc_states = stoc_next_states
 
-    # print(total_reward)
-    # save_video(frames, 'tmp/wadafug_6')
+    print(total_reward)
+    save_video(frames, 'tmp/advantage')
     print(np.mean(total_rewards))
     mean_rewards.append((np.mean(total_rewards)))
     # print('-------')
     # print(np.mean(stoc_total_rewards))
     # stoc_mean_rewards.append((np.mean(stoc_total_rewards)))
     # print('###########################')
+    break
+exit()
+blue = np.loadtxt('new.csv')
+green = np.loadtxt('neww.csv')
+
+
 fig, ax = plt.subplots(figsize=(10, 7), layout="constrained")
-ax.plot(np.arange(1, len(mean_rewards) + 1) * 50000, mean_rewards, label='Deterministic Action')
-# ax.plot(np.arange(1, len(mean_rewards) + 1) * 50000, stoc_mean_rewards, label='Sampled Actions')
+# ax.plot(np.arange(1, len(mean_rewards) + 1) * 50000, mean_rewards, label='Deterministic Action')
+ax.plot(np.arange(1, len(blue) + 1) * 50000, blue, color='#5bc5db', label='Deterministic Action')
+ax.plot(np.arange(1, len(green) + 1) * 50000, green, color='#497a5f', label='Sampled Actions')
 ax.set_ylabel('Total Reward')
 ax.set_xlabel('Epoch')
 ax.grid()
 # ax.legend(loc='best')
-plt.savefig("./doc/images/val_adv.pdf")
+plt.savefig("./doc/images/SAC_val_reward.pdf")
+
 
 # xvfb-run -a python visualize.py
