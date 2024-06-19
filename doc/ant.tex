@@ -56,7 +56,7 @@ the new action. It can be parmaetrized with a starting $\epsilon$, decay weight 
 Every 10 iterations the current model is evaluated by running the model only with actions suggested by the trained policy.
 To speed up the developement, the training routine was stopped, when a perfect scrore was achieved in the evaluation.
 In Figures \ref{REIN:Pen_eval} and \ref{REIN:Pen_tra} the curves of the evaluation and train reward are depicted.
-The agent sucessfuly trained a policy to balance the pendulum. This policy can be seen in the video in TODO
+The agent sucessfuly trained a policy to balance the pendulum. This policy can be seen in the video in \textit{pendulum.mp4}.
 
 \begin{figure}
     \centering
@@ -114,12 +114,12 @@ Since SAC is a off policy learner, the agent can take much more training steps w
 The latter turned out to be the biggest bottleneck.
 However the results are not as good as the ones provided by \cite{haarnoja2018soft}.
 
-\begin{figure}
-    \centering
-    \includegraphics[width=15cm]{test.pdf}
-    \caption{Training run rewards vor the ant environment.}
-    \label{SAC:test}
-\end{figure}
+% \begin{figure}
+%     \centering
+%     \includegraphics[width=15cm]{test.pdf}
+%     \caption{Training run rewards vor the ant environment.}
+%     \label{SAC:test}
+% \end{figure}
 
 \begin{figure}
     \centering
@@ -151,11 +151,15 @@ is an advantage consitsing of the learned Q and Value function.
 However one training run stood out and it was the one with the least initial random steps.
 Either it was luck or the initial random steps may be a hyperparameter worth finetuning.
 Due to the lengths of the trainings this idea could not be further investigated before submission.
+Figures \ref{SAC:acc_loss}, \ref{SAC:tr_rew} and \ref{SAC:val_rew} show the different loss and reward curve of the 
+'lucky run' and a 'normal run'.
+The videos \textit{blue.mp4}, \textit{green.mp4} and \textit{advantage.mp4} show a run of each corresponding model.
+The colors correspond to the colors of the figures \ref{SAC:acc_loss}, \ref{SAC:tr_rew} and \ref{SAC:val_rew}.
 
 \begin{figure}
     \centering
     \includegraphics[width=15cm]{SAC_actor_loss.png}
-    \caption{Actor loss, in green is the run with 100'000 initial random steps
+    \caption{Actor loss, in green is the lucky run with 100'000 initial random steps
     and in blue the run with 200'000 inital random steps.}
     \label{SAC:acc_loss}
 \end{figure}
@@ -163,9 +167,17 @@ Due to the lengths of the trainings this idea could not be further investigated 
 \begin{figure}
     \centering
     \includegraphics[width=15cm]{SAC_train_reward.png}
-    \caption{Training environments rewards, in green is the run with 100'000 initial random steps
+    \caption{Training environments rewards, in green is the lucky run with 100'000 initial random steps
     and in blue the run with 200'000 inital random steps.}
     \label{SAC:tr_rew}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=15cm]{SAC_val_reward.pdf}
+    \caption{Validation rewards, in green is the lucky run with 100'000 initial random steps
+    and in blue the run with 200'000 inital random steps.}
+    \label{SAC:val_rew}
 \end{figure}
 
 \bibliography{mybib}{}
